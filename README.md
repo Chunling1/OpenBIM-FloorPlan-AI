@@ -255,7 +255,26 @@ OpenBIM-FloorPlan-AI/
 
 ## 🤝 Contributing
 
-欢迎贡献！可以参与的方向：
+### 🏷️ 社区共建标注 — 最需要你的帮助！
+
+我们正在构建一个**开放的建筑平面图标注数据集**，任何人都可以贡献标注！
+
+```bash
+# 1. Fork 并克隆仓库
+# 2. 运行标注工具
+python label_tool/server.py \
+    --data-dir community_annotations/images \
+    --mask-dir community_annotations/annotations
+
+# 3. 在浏览器中标注: http://localhost:8099
+# 4. 导出并提交 PR
+python label_tool/export_contribution.py --annotator-name "你的名字"
+git add community_annotations/ && git commit -m "Add annotations" && git push
+```
+
+📖 详细步骤请参阅 [CONTRIBUTING.md](CONTRIBUTING.md)
+
+### 其他贡献方向
 
 - 🏢 **商业建筑数据集** — 收集标注办公楼、酒店、商场等商业建筑平面图
 - 📐 **新语义类别** — 扩展识别楼梯、电梯、家具等更多构件

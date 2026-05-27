@@ -1,19 +1,35 @@
 """
 BIM 平面图语义标注工具 — 后端 (纯内置 http.server 版本，无需安装 Flask)
 标注类别: 0=背景, 1=墙体, 2=窗户, 3=门
+
+用法:
+    python server.py [--data-dir DIR] [--mask-dir DIR] [--port PORT]
+
+默认数据目录为脚本所在目录下的 ./data/images 和 ./data/annotations。
+可通过命令行参数覆盖。
 """
 import os
 import json
 import base64
+import argparse
+import getpass
+import platform
+from datetime import datetime, timezone
+
 import numpy as np
 import cv2
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import urllib.parse
 
-DATA_DIR = Path("D:/我的坚果云/工作/博士/bim/标注/原图")
-MASK_DIR = Path("D:/我的坚果云/工作/博士/bim/标注/已标注")
-MASK_DIR.mkdir(parents=True, exist_ok=True)
+# ---- 脚本相对默认路径 ----
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_DEFAULT_DATA_DIR = _SCRIPT_DIR / "data" / "images"
+_DEFAULT_MASK_DIR = _SCRIPT_DIR / "data" / "annotations"
+
+# 运行时由 main() 设置，模块级变量供 handler / helper 函数使用
+DATA_DIR: Path = _DEFAULT_DATA_DIR
+MASK_DIR: Path = _DEFAULT_MASK_DIR
 
 SUPPORTED_EXT = {'.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff'}
 
@@ -131,7 +147,32 @@ class LabelToolHTTPHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps(result).encode('utf-8'))
             return
-            
+
+        elif path == '/api/export':
+            # 返回贡献者信息及所有已标注 mask 文件名，方便准备 PR 提交
+            images = get_image_list()
+            mask_files = []
+            for name in images:
+                stem = Path(name).stem
+                npy_name = stem + '_mask.npy'
+                if (MASK_DIR / npy_name).exists():
+                    mask_files.append(npy_name)
+            result = {
+                'contributor': getpass.getuser(),
+                'hostname': platform.node(),
+                'exported_at': datetime.now(timezone.utc).isoformat(),
+                'data_dir': str(DATA_DIR),
+                'mask_dir': str(MASK_DIR),
+                'total_images': len(images),
+                'labeled_count': len(mask_files),
+                'mask_files': mask_files,
+            }
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(result, ensure_ascii=False).encode('utf-8'))
+            return
+
         else:
             self.send_error(404, "Not Found")
 
@@ -234,5 +275,37 @@ def run(server_class=HTTPServer, handler_class=LabelToolHTTPHandler, port=8099):
     httpd.server_close()
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description='BIM 平面图语义标注工具后端服务器',
+    )
+    parser.add_argument(
+        '--data-dir',
+        type=Path,
+        default=_DEFAULT_DATA_DIR,
+        help=f'原图目录 (默认: {_DEFAULT_DATA_DIR})',
+    )
+    parser.add_argument(
+        '--mask-dir',
+        type=Path,
+        default=_DEFAULT_MASK_DIR,
+        help=f'标注输出目录 (默认: {_DEFAULT_MASK_DIR})',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=8099,
+        help='监听端口 (默认: 8099)',
+    )
+    return parser.parse_args()
+
+
 if __name__ == '__main__':
-    run()
+    args = parse_args()
+
+    # 将命令行参数写入模块级变量
+    DATA_DIR = args.data_dir.resolve()
+    MASK_DIR = args.mask_dir.resolve()
+    MASK_DIR.mkdir(parents=True, exist_ok=True)
+
+    run(port=args.port)

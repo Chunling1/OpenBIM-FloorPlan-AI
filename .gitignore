@@ -7,6 +7,7 @@
 data/cubicasa5k/
 label_tool/samples.json
 *.npy
+!community_annotations/annotations/*.npy
 
 # Output
 output*/
