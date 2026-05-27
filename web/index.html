@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenBIM FloorPlan AI - Semantic Segmentation</title>
+    <meta name="description" content="AI-powered building floor plan semantic segmentation system. Open source solution for architecture.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/openbim/static/style.css">
+</head>
+<body>
+    <!-- 背景粒子 -->
+    <canvas id="particles-bg"></canvas>
+
+    <!-- 顶部导航 -->
+    <header class="top-bar">
+        <div class="logo-area">
+            <div class="logo-icon">
+                <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                    <rect x="2" y="2" width="10" height="10" rx="2" fill="#3498db" opacity="0.9"/>
+                    <rect x="16" y="2" width="10" height="10" rx="2" fill="#e74c3c" opacity="0.9"/>
+                    <rect x="2" y="16" width="10" height="10" rx="2" fill="#2ecc71" opacity="0.9"/>
+                    <rect x="16" y="16" width="10" height="10" rx="2" fill="#f39c12" opacity="0.7"/>
+                </svg>
+            </div>
+            <h1 class="logo-text">OpenBIM <span class="accent">FloorPlan AI</span></h1>
+        </div>
+        <div class="nav-info">
+            <div class="model-badge" id="modelBadge">
+                <span class="dot green"></span>
+                <span>M2 DA · mIoU 0.787</span>
+            </div>
+            <a href="#" class="github-btn" target="_blank" rel="noopener noreferrer">
+                <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+                </svg>
+                <span>GitHub</span>
+            </a>
+            <div class="device-badge" id="deviceBadge">—</div>
+        </div>
+    </header>
+
+    <!-- 主容器 -->
+    <main class="main-container">
+        <!-- 左侧：上传区 + 控制面板 -->
+        <aside class="sidebar">
+            <!-- 上传区 -->
+            <div class="upload-zone" id="uploadZone">
+                <div class="upload-inner" id="uploadInner">
+                    <div class="upload-icon">
+                        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M8 32l8-8 6 6 8-10 10 12" stroke-linecap="round" stroke-linejoin="round"/>
+                            <rect x="4" y="6" width="40" height="36" rx="4"/>
+                            <circle cx="16" cy="16" r="3"/>
+                        </svg>
+                    </div>
+                    <p class="upload-title">Drop floor plan here</p>
+                    <p class="upload-sub">拖拽图纸到此处或点击上传</p>
+                    <p class="upload-hint">Format: JPG / PNG / BMP / PDF</p>
+                    <input type="file" id="fileInput" accept="image/*" hidden>
+                </div>
+                <!-- 预览缩略图 -->
+                <div class="preview-thumb" id="previewThumb" style="display:none">
+                    <img id="previewImg" alt="preview">
+                    <button class="btn-clear" id="btnClear" title="清除">✕</button>
+                </div>
+            </div>
+
+            <!-- 预处理选项 -->
+            <div class="panel">
+                <h3 class="panel-title">Pre-Processing / 预处理模式</h3>
+                <div class="radio-group">
+                    <label class="radio-item active" data-value="auto">
+                        <input type="radio" name="preprocess" value="auto" checked>
+                        <span class="radio-dot"></span>
+                        <div>
+                            <span class="radio-label">Auto Enhancement 智能增强</span>
+                            <span class="radio-desc">Color denoise & CAD inversion 去标注黑底反转</span>
+                        </div>
+                    </label>
+                    <label class="radio-item" data-value="none">
+                        <input type="radio" name="preprocess" value="none">
+                        <span class="radio-dot"></span>
+                        <div>
+                            <span class="radio-label">Direct Inference 原图直推</span>
+                            <span class="radio-desc">No processing for clean inputs 干净底图直接识别</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 开始识别按钮 -->
+            <button class="btn-primary" id="btnPredict" disabled>
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 2a7 7 0 105.3 11.7l3.7 3.7" stroke-linecap="round"/>
+                </svg>
+                <span>Extract Elements 提取构件</span>
+            </button>
+
+            <!-- 统计信息 -->
+            <div class="panel stats-panel" id="statsPanel" style="display:none">
+                <h3 class="panel-title">Segmentation Stats / 识别统计</h3>
+                <div class="stat-bars" id="statBars"></div>
+                <div class="stat-meta" id="statMeta"></div>
+            </div>
+
+            <!-- 几何统计 -->
+            <div class="panel geo-panel" id="geoPanel" style="display:none">
+                <h3 class="panel-title">Geometry Data / 几何数据</h3>
+                <div class="geo-grid" id="geoGrid"></div>
+            </div>
+        </aside>
+
+        <!-- 右侧：结果展示区 -->
+        <section class="result-area">
+            <!-- 空状态 -->
+            <div class="empty-state" id="emptyState">
+                <div class="empty-icon">
+                    <svg width="80" height="80" viewBox="0 0 80 80" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.3">
+                        <rect x="10" y="10" width="60" height="60" rx="6"/>
+                        <line x1="10" y1="40" x2="70" y2="40"/>
+                        <line x1="40" y1="10" x2="40" y2="70"/>
+                        <rect x="15" y="15" width="20" height="20" rx="2" fill="currentColor" opacity="0.1"/>
+                        <rect x="45" y="45" width="20" height="20" rx="2" fill="currentColor" opacity="0.1"/>
+                    </svg>
+                </div>
+                <h2>Provide a Floor Plan to begin</h2>
+                <p>Models will automatically extract walls, windows and doors geo-locations.</p>
+            </div>
+
+            <!-- 加载动画 -->
+            <div class="loading-overlay" id="loadingOverlay" style="display:none">
+                <div class="loading-spinner">
+                    <div class="spinner-ring"></div>
+                    <div class="spinner-ring inner"></div>
+                </div>
+                <p class="loading-text">UNet+ResNet34 is inferencing...</p>
+                <p class="loading-sub" id="loadingTimer">0.0s</p>
+            </div>
+
+            <!-- 结果视图 -->
+            <div class="result-view" id="resultView" style="display:none">
+                <!-- 视图切换 -->
+                <div class="view-tabs">
+                    <button class="tab active" data-view="overlay" id="tabOverlay">Overlay (叠加)</button>
+                    <button class="tab" data-view="mask" id="tabMask">Mask (掩码)</button>
+                    <button class="tab" data-view="split" id="tabSplit">Compare (对比)</button>
+                </div>
+                <!-- 图像展示 -->
+                <div class="viewer-container" id="viewerContainer">
+                    <!-- overlay视图 -->
+                    <div class="view-pane active" data-view="overlay">
+                        <img id="imgOverlay" alt="overlay result" draggable="false">
+                    </div>
+                    <!-- mask视图 -->
+                    <div class="view-pane" data-view="mask">
+                        <img id="imgMask" alt="segmentation mask" draggable="false">
+                    </div>
+                    <!-- 对比视图 -->
+                    <div class="view-pane" data-view="split">
+                        <div class="split-compare" id="splitCompare">
+                            <div class="split-left">
+                                <img id="imgOrigSplit" alt="original" draggable="false">
+                                <span class="split-label left">Source</span>
+                            </div>
+                            <div class="split-right">
+                                <img id="imgOverlaySplit" alt="result" draggable="false">
+                                <span class="split-label right">Result</span>
+                            </div>
+                            <div class="split-handle" id="splitHandle">
+                                <div class="handle-bar"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- 图例 -->
+                <div class="legend-bar">
+                    <div class="legend-item"><span class="legend-dot" style="background:#e74c3c"></span>墙体 Wall</div>
+                    <div class="legend-item"><span class="legend-dot" style="background:#3498db"></span>窗户 Window</div>
+                    <div class="legend-item"><span class="legend-dot" style="background:#2ecc71"></span>门 Door</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 底部信息 -->
+    <footer class="footer-bar">
+        <span>Powered by OpenBIM Foundation | Model: UNet+ResNet34 (Domain Adapted) | Dataset: CubiCasa5K | Open Source MIT License</span>
+    </footer>
+
+    <script src="/openbim/static/app.js"></script>
+</body>
+</html>

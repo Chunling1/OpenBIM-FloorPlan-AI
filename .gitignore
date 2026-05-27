@@ -1,0 +1,45 @@
+# Model weights (use GitHub Releases)
+*.pt
+*.pth
+*.onnx
+
+# Data
+data/cubicasa5k/
+label_tool/samples.json
+*.npy
+
+# Output
+output*/
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# Database
+*.db
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Uploads
+uploads/
+
+# Temp
+*.tmp
+_temp_*
+
+# Large test images
+test_user_cad.png
+
+# Generated images
+label_tool/*.png
+!label_tool/static/
+
+# Jianguoyun paths (local only)
+D:/

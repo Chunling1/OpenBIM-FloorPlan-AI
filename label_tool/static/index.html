@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>BIM 平面图语义标注工具</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22262f;
+    --border: #2d3240;
+    --text: #e4e8f1;
+    --text2: #8b93a8;
+    --accent: #6c5ce7;
+    --wall: #e74c3c;
+    --window: #3498db;
+    --door: #2ecc71;
+    --eraser: #95a5a6;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+    font-family: 'Outfit', 'Noto Sans SC', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ========= 顶栏 ========= */
+.topbar {
+    height: 52px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 16px;
+    flex-shrink: 0;
+}
+.topbar .logo { font-size: 16px; font-weight: 700; color: var(--accent); }
+.topbar .stats { font-size: 13px; color: var(--text2); margin-left: auto; }
+.topbar .stats b { color: var(--text); }
+
+/* ========= 主区域 ========= */
+.main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* ========= 左侧文件列表 ========= */
+.sidebar {
+    width: 200px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+.sidebar .title {
+    padding: 12px 14px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.file-item {
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-left: 3px solid transparent;
+    transition: all 0.15s;
+}
+.file-item:hover { background: var(--surface2); }
+.file-item.active { background: rgba(108,92,231,0.15); border-left-color: var(--accent); }
+.file-item .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #444;
+    flex-shrink: 0;
+}
+.file-item .dot.done { background: var(--door); }
+.file-item .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ========= 画布区域 ========= */
+.canvas-area {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: #0a0c12;
+    cursor: crosshair;
+}
+.canvas-wrapper {
+    position: absolute;
+    transform-origin: 0 0;
+}
+canvas {
+    display: block;
+    position: absolute;
+    top: 0; left: 0;
+}
+#bgCanvas { z-index: 1; }
+#maskCanvas { z-index: 2; }
+#cursorCanvas { z-index: 3; pointer-events: none; }
+
+/* ========= 右侧工具栏 ========= */
+.toolbar {
+    width: 220px;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    flex-shrink: 0;
+    overflow-y: auto;
+}
+.tool-section { display: flex; flex-direction: column; gap: 8px; }
+.tool-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.tool-btn {
+    padding: 10px 14px;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.15s;
+}
+.tool-btn:hover { border-color: #555; }
+.tool-btn.active { border-color: var(--accent); background: rgba(108,92,231,0.15); }
+.tool-btn .swatch {
+    width: 16px; height: 16px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.2);
+}
+.slider-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.slider-row input[type=range] { flex: 1; accent-color: var(--accent); }
+.slider-row .val { font-size: 13px; color: var(--text2); min-width: 30px; text-align: right; }
+
+.action-btn {
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.action-btn.primary {
+    background: linear-gradient(135deg, var(--accent), #a855f7);
+    color: white;
+}
+.action-btn.primary:hover { filter: brightness(1.15); transform: translateY(-1px); }
+.action-btn.danger { background: rgba(231,76,60,0.2); color: var(--wall); border: 1px solid rgba(231,76,60,0.3); }
+.action-btn.danger:hover { background: rgba(231,76,60,0.35); }
+.action-btn.secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.action-btn.secondary:hover { border-color: #555; }
+
+.opacity-info {
+    font-size: 12px;
+    color: var(--text2);
+    text-align: center;
+    padding: 4px;
+}
+
+/* ========= 快捷键提示 ========= */
+.shortcuts {
+    margin-top: auto;
+    padding: 12px;
+    background: var(--surface2);
+    border-radius: 8px;
+    font-size: 11px;
+    color: var(--text2);
+    line-height: 1.8;
+}
+.shortcuts b { color: var(--text); }
+.shortcuts kbd {
+    background: var(--bg);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 11px;
+    color: var(--accent);
+    border: 1px solid var(--border);
+}
+
+/* ========= 状态栏 ========= */
+.statusbar {
+    height: 28px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    font-size: 11px;
+    color: var(--text2);
+    gap: 20px;
+    flex-shrink: 0;
+}
+
+/* ========= Toast ========= */
+.toast {
+    position: fixed;
+    top: 60px;
+    right: 20px;
+    background: var(--door);
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    z-index: 9999;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: all 0.3s;
+    pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- 顶栏 -->
+<div class="topbar">
+    <div class="logo">🏗️ BIM 语义标注工具</div>
+    <div style="font-size:12px;color:var(--text2)">墙体 / 窗户 / 门 像素级标注</div>
+    <div class="stats" id="globalStats">加载中...</div>
+</div>
+
+<!-- 主区域 -->
+<div class="main">
+    <!-- 左侧文件列表 -->
+    <div class="sidebar">
+        <div class="title">📁 图纸列表</div>
+        <div id="fileList"></div>
+    </div>
+
+    <!-- 画布区域 -->
+    <div class="canvas-area" id="canvasArea">
+        <div class="canvas-wrapper" id="canvasWrapper">
+            <canvas id="bgCanvas"></canvas>
+            <canvas id="maskCanvas"></canvas>
+            <canvas id="cursorCanvas"></canvas>
+        </div>
+    </div>
+
+    <!-- 右侧工具栏 -->
+    <div class="toolbar">
+        <div class="tool-section">
+            <div class="tool-label">画笔工具</div>
+            <button class="tool-btn active" data-tool="wall" id="btnWall">
+                <span class="swatch" style="background:var(--wall)"></span> 墙体 (W)
+            </button>
+            <button class="tool-btn" data-tool="window" id="btnWindow">
+                <span class="swatch" style="background:var(--window)"></span> 窗户 (E)
+            </button>
+            <button class="tool-btn" data-tool="door" id="btnDoor">
+                <span class="swatch" style="background:var(--door)"></span> 门 (D)
+            </button>
+            <button class="tool-btn" data-tool="eraser" id="btnEraser">
+                <span class="swatch" style="background:var(--eraser)"></span> 橡皮擦 (X)
+            </button>
+        </div>
+
+        <div class="tool-section">
+            <div class="tool-label">画笔大小</div>
+            <div class="slider-row">
+                <input type="range" id="brushSize" min="1" max="80" value="12">
+                <span class="val" id="brushSizeVal">12</span>
+            </div>
+        </div>
+
+        <div class="tool-section">
+            <div class="tool-label">标注透明度</div>
+            <div class="slider-row">
+                <input type="range" id="maskOpacity" min="10" max="90" value="50">
+                <span class="val" id="maskOpacityVal">50%</span>
+            </div>
+        </div>
+
+        <div class="tool-section">
+            <div class="tool-label">操作</div>
+            <button class="action-btn primary" onclick="saveMask()">💾 保存标注 (Ctrl+S)</button>
+            <button class="action-btn danger" onclick="clearMask()">🗑️ 清除当前标注</button>
+            <button class="action-btn secondary" onclick="undoStroke()">↩️ 撤销 (Ctrl+Z)</button>
+        </div>
+
+        <div class="tool-section">
+            <div class="tool-label">导航</div>
+            <button class="action-btn secondary" onclick="prevImage()">⬆️ 上一张 (A)</button>
+            <button class="action-btn secondary" onclick="nextImage()">⬇️ 下一张 (S)</button>
+        </div>
+
+        <div class="shortcuts">
+            <b>快捷键</b><br>
+            <kbd>W</kbd> 墙体 &nbsp; <kbd>E</kbd> 窗户 &nbsp; <kbd>D</kbd> 门<br>
+            <kbd>X</kbd> 橡皮擦 &nbsp; <kbd>[</kbd><kbd>]</kbd> 笔刷大小<br>
+            <kbd>Ctrl+S</kbd> 保存 &nbsp; <kbd>Ctrl+Z</kbd> 撤销<br>
+            <kbd>A</kbd>/<kbd>S</kbd> 上/下一张<br>
+            <kbd>滚轮</kbd> 缩放 &nbsp; <kbd>空格+拖拽</kbd> 平移
+        </div>
+    </div>
+</div>
+
+<!-- 状态栏 -->
+<div class="statusbar">
+    <span id="statusPos">X: 0  Y: 0</span>
+    <span id="statusZoom">100%</span>
+    <span id="statusSize">-</span>
+    <span id="statusFile">未加载</span>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============ 状态 ============
+let images = [];
+let currentIndex = -1;
+let currentTool = 'wall';
+let brushSize = 12;
+let maskOpacity = 0.5;
+let isDrawing = false;
+let isPanning = false;
+let spaceDown = false;
+let zoom = 1;
+let panX = 0, panY = 0;
+let lastPanX = 0, lastPanY = 0;
+let lastMouseX = 0, lastMouseY = 0;
+let undoStack = [];
+const MAX_UNDO = 30;
+
+const TOOL_COLORS = {
+    wall:   { r:231, g:76,  b:60,  a:255 },
+    window: { r:52,  g:152, b:219, a:255 },
+    door:   { r:46,  g:204, b:113, a:255 },
+    eraser: { r:0,   g:0,   b:0,   a:0   },
+};
+
+// ============ 元素 ============
+const bgCanvas = document.getElementById('bgCanvas');
+const maskCanvas = document.getElementById('maskCanvas');
+const cursorCanvas = document.getElementById('cursorCanvas');
+const bgCtx = bgCanvas.getContext('2d');
+const maskCtx = maskCanvas.getContext('2d');
+const cursorCtx = cursorCanvas.getContext('2d');
+const canvasArea = document.getElementById('canvasArea');
+const wrapper = document.getElementById('canvasWrapper');
+
+// ============ 初始化 ============
+async function init() {
+    const res = await fetch('/api/images');
+    images = await res.json();
+    renderFileList();
+    updateStats();
+    if (images.length > 0) loadImage(0);
+}
+
+function renderFileList() {
+    const el = document.getElementById('fileList');
+    el.innerHTML = images.map((img, i) => `
+        <div class="file-item ${i === currentIndex ? 'active' : ''}" onclick="loadImage(${i})">
+            <span class="dot ${img.labeled ? 'done' : ''}"></span>
+            <span class="name" title="${img.name}">${img.name}</span>
+        </div>
+    `).join('');
+}
+
+async function updateStats() {
+    const res = await fetch('/api/stats');
+    const s = await res.json();
+    document.getElementById('globalStats').innerHTML =
+        `已标注: <b>${s.labeled}</b> / ${s.total} &nbsp; 剩余: <b>${s.remaining}</b>`;
+}
+
+// ============ 加载图片 ============
+async function loadImage(index) {
+    if (index < 0 || index >= images.length) return;
+    currentIndex = index;
+    renderFileList();
+    undoStack = [];
+
+    const img = new Image();
+    img.onload = async () => {
+        const w = img.width, h = img.height;
+        [bgCanvas, maskCanvas, cursorCanvas].forEach(c => { c.width = w; c.height = h; });
+
+        bgCtx.drawImage(img, 0, 0);
+        maskCtx.clearRect(0, 0, w, h);
+        maskCanvas.style.opacity = maskOpacity;
+
+        // 自动缩放适配视口
+        const areaW = canvasArea.clientWidth, areaH = canvasArea.clientHeight;
+        zoom = Math.min(areaW / w, areaH / h, 1) * 0.95;
+        panX = (areaW - w * zoom) / 2;
+        panY = (areaH - h * zoom) / 2;
+        applyTransform();
+
+        document.getElementById('statusSize').textContent = `${w}×${h}`;
+        document.getElementById('statusFile').textContent = images[index].name;
+
+        // 加载已有 mask
+        const maskRes = await fetch(`/api/mask/${images[index].name}`);
+        const maskData = await maskRes.json();
+        if (maskData.exists) {
+            const maskImg = new Image();
+            maskImg.onload = () => { maskCtx.drawImage(maskImg, 0, 0); };
+            maskImg.src = 'data:image/png;base64,' + maskData.mask_b64;
+        }
+    };
+    img.src = `/api/image/${images[index].name}`;
+}
+
+function applyTransform() {
+    wrapper.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+    document.getElementById('statusZoom').textContent = Math.round(zoom * 100) + '%';
+}
+
+// ============ 画笔绘制 ============
+function getCanvasPos(e) {
+    const rect = canvasArea.getBoundingClientRect();
+    const x = (e.clientX - rect.left - panX) / zoom;
+    const y = (e.clientY - rect.top - panY) / zoom;
+    return { x, y };
+}
+
+function drawCircle(ctx, x, y, radius, tool) {
+    const c = TOOL_COLORS[tool];
+    if (tool === 'eraser') {
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    } else {
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = `rgba(${c.r},${c.g},${c.b},1)`;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
+function drawLine(ctx, x1, y1, x2, y2, radius, tool) {
+    const c = TOOL_COLORS[tool];
+    if (tool === 'eraser') {
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.lineWidth = radius * 2;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+        ctx.restore();
+    } else {
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = `rgba(${c.r},${c.g},${c.b},1)`;
+        ctx.lineWidth = radius * 2;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+        ctx.restore();
+    }
+}
+
+function saveUndoState() {
+    const data = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+    undoStack.push(data);
+    if (undoStack.length > MAX_UNDO) undoStack.shift();
+}
+
+function undoStroke() {
+    if (undoStack.length === 0) return;
+    const data = undoStack.pop();
+    maskCtx.putImageData(data, 0, 0);
+}
+
+// ============ 鼠标事件 ============
+canvasArea.addEventListener('mousedown', (e) => {
+    if (e.button === 1 || spaceDown) {
+        isPanning = true;
+        lastPanX = e.clientX;
+        lastPanY = e.clientY;
+        canvasArea.style.cursor = 'grabbing';
+        e.preventDefault();
+        return;
+    }
+    if (e.button !== 0) return;
+    isDrawing = true;
+    saveUndoState();
+    const pos = getCanvasPos(e);
+    drawCircle(maskCtx, pos.x, pos.y, brushSize, currentTool);
+    lastMouseX = pos.x;
+    lastMouseY = pos.y;
+});
+
+canvasArea.addEventListener('mousemove', (e) => {
+    const pos = getCanvasPos(e);
+    document.getElementById('statusPos').textContent = `X: ${Math.round(pos.x)}  Y: ${Math.round(pos.y)}`;
+
+    // 光标预览
+    cursorCtx.clearRect(0, 0, cursorCanvas.width, cursorCanvas.height);
+    const c = TOOL_COLORS[currentTool] || TOOL_COLORS.wall;
+    cursorCtx.strokeStyle = currentTool === 'eraser'
+        ? 'rgba(255,255,255,0.6)'
+        : `rgba(${c.r},${c.g},${c.b},0.6)`;
+    cursorCtx.lineWidth = 1.5;
+    cursorCtx.beginPath();
+    cursorCtx.arc(pos.x, pos.y, brushSize, 0, Math.PI * 2);
+    cursorCtx.stroke();
+
+    if (isPanning) {
+        panX += e.clientX - lastPanX;
+        panY += e.clientY - lastPanY;
+        lastPanX = e.clientX;
+        lastPanY = e.clientY;
+        applyTransform();
+        return;
+    }
+    if (!isDrawing) return;
+    drawLine(maskCtx, lastMouseX, lastMouseY, pos.x, pos.y, brushSize, currentTool);
+    lastMouseX = pos.x;
+    lastMouseY = pos.y;
+});
+
+canvasArea.addEventListener('mouseup', () => {
+    isDrawing = false;
+    isPanning = false;
+    canvasArea.style.cursor = spaceDown ? 'grab' : 'crosshair';
+});
+
+canvasArea.addEventListener('mouseleave', () => {
+    isDrawing = false;
+    isPanning = false;
+    cursorCtx.clearRect(0, 0, cursorCanvas.width, cursorCanvas.height);
+});
+
+// ============ 缩放 ============
+canvasArea.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = canvasArea.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    const oldZoom = zoom;
+    const factor = e.deltaY < 0 ? 1.12 : 0.89;
+    zoom = Math.max(0.1, Math.min(20, zoom * factor));
+
+    panX = mx - (mx - panX) * zoom / oldZoom;
+    panY = my - (my - panY) * zoom / oldZoom;
+    applyTransform();
+}, { passive: false });
+
+// ============ 键盘 ============
+document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') { spaceDown = true; canvasArea.style.cursor = 'grab'; e.preventDefault(); }
+    if (e.key === 'w' || e.key === 'W') setTool('wall');
+    if (e.key === 'e' || e.key === 'E') setTool('window');
+    if (e.key === 'd' || e.key === 'D') setTool('door');
+    if (e.key === 'x' || e.key === 'X') setTool('eraser');
+    if (e.key === 'a' || e.key === 'A') prevImage();
+    if (e.key === 's' && !e.ctrlKey) nextImage();
+    if (e.key === '[') { brushSize = Math.max(1, brushSize - 3); updateBrushUI(); }
+    if (e.key === ']') { brushSize = Math.min(80, brushSize + 3); updateBrushUI(); }
+    if (e.ctrlKey && e.key === 's') { e.preventDefault(); saveMask(); }
+    if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undoStroke(); }
+});
+
+document.addEventListener('keyup', (e) => {
+    if (e.code === 'Space') { spaceDown = false; canvasArea.style.cursor = 'crosshair'; }
+});
+
+// ============ 工具切换 ============
+function setTool(tool) {
+    currentTool = tool;
+    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`[data-tool="${tool}"]`).classList.add('active');
+}
+
+document.querySelectorAll('.tool-btn').forEach(btn => {
+    btn.addEventListener('click', () => setTool(btn.dataset.tool));
+});
+
+// ============ 画笔大小 ============
+document.getElementById('brushSize').addEventListener('input', (e) => {
+    brushSize = parseInt(e.target.value);
+    document.getElementById('brushSizeVal').textContent = brushSize;
+});
+
+function updateBrushUI() {
+    document.getElementById('brushSize').value = brushSize;
+    document.getElementById('brushSizeVal').textContent = brushSize;
+}
+
+// ============ 透明度 ============
+document.getElementById('maskOpacity').addEventListener('input', (e) => {
+    maskOpacity = parseInt(e.target.value) / 100;
+    maskCanvas.style.opacity = maskOpacity;
+    document.getElementById('maskOpacityVal').textContent = Math.round(maskOpacity * 100) + '%';
+});
+
+// ============ 保存 ============
+async function saveMask() {
+    if (currentIndex < 0) return;
+    const dataURL = maskCanvas.toDataURL('image/png');
+    const b64 = dataURL.split(',')[1];
+
+    const res = await fetch('/api/save_mask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            image_name: images[currentIndex].name,
+            mask_data: b64,
+        }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+        images[currentIndex].labeled = true;
+        renderFileList();
+        updateStats();
+        showToast(`✅ 已保存！墙:${data.stats.wall_px} 窗:${data.stats.window_px} 门:${data.stats.door_px}`);
+    }
+}
+
+function clearMask() {
+    if (!confirm('确定清除当前所有标注？')) return;
+    saveUndoState();
+    maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+}
+
+function prevImage() { if (currentIndex > 0) loadImage(currentIndex - 1); }
+function nextImage() { if (currentIndex < images.length - 1) loadImage(currentIndex + 1); }
+
+// ============ Toast ============
+function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ============ 启动 ============
+init();
+</script>
+</body>
+</html>

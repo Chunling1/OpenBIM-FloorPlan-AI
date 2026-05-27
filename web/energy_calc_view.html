@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenBIM FloorPlan AI & 能耗计算平台</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #3498db;
+            --secondary: #9b59b6;
+            --success: #2ecc71;
+            --warning: #f1c40f;
+            --danger: #e74c3c;
+            --dark-bg: #0f141c;
+            --card-bg: rgba(22, 28, 38, 0.65);
+            --border: rgba(255, 255, 255, 0.08);
+            --text: #f1f2f6;
+            --text-muted: #a4b0be;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', 'Noto Sans SC', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            background-color: var(--dark-bg);
+            background-image: 
+                radial-gradient(at 10% 20%, rgba(52, 152, 219, 0.15) 0px, transparent 50%),
+                radial-gradient(at 90% 10%, rgba(155, 89, 182, 0.15) 0px, transparent 50%),
+                radial-gradient(at 50% 80%, rgba(46, 204, 113, 0.1) 0px, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        header {
+            backdrop-filter: blur(12px);
+            background: rgba(15, 20, 28, 0.7);
+            border-bottom: 1px solid var(--border);
+            padding: 15px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+        }
+
+        .logo-text {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .logo-text span {
+            background: linear-gradient(to right, #3498db, #9b59b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            background: rgba(46, 204, 113, 0.15);
+            border: 1px solid rgba(46, 204, 113, 0.3);
+            color: var(--success);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(46, 204, 113, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
+        }
+
+        main {
+            flex: 1;
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 30px 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+
+        /* 步骤条 */
+        .steps-container {
+            display: flex;
+            justify-content: space-between;
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px 40px;
+            position: relative;
+        }
+
+        .step-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            z-index: 2;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 20%;
+        }
+
+        .step-node {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #1e272e;
+            border: 2px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            color: var(--text-muted);
+            transition: all 0.3s ease;
+        }
+
+        .step-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        .step-item.active .step-node {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #fff;
+            box-shadow: 0 0 15px rgba(52, 152, 219, 0.4);
+        }
+
+        .step-item.active .step-label {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .step-item.completed .step-node {
+            background: var(--success);
+            border-color: var(--success);
+            color: #fff;
+        }
+
+        .step-item.completed .step-label {
+            color: var(--success);
+        }
+
+        /* 页面视图卡片 */
+        .view-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            display: none;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .view-card.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 表格/两栏布局 */
+        .row {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .col-6 {
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .col-12 {
+            width: 100%;
+        }
+
+        h2.section-title {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        h2.section-title::before {
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 22px;
+            background: linear-gradient(to bottom, var(--primary), var(--secondary));
+            border-radius: 3px;
+        }
+
+        /* 上传组件 */
+        .upload-wrapper {
+            border: 2px dashed rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            padding: 50px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.02);
+            position: relative;
+        }
+
+        .upload-wrapper:hover {
+            border-color: var(--primary);
+            background: rgba(52, 152, 219, 0.04);
+        }
+
+        .upload-icon-large {
+            font-size: 48px;
+            color: var(--primary);
+            margin-bottom: 15px;
+        }
+
+        .upload-text {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .upload-sub {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .file-input {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        /* 输入控件 */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--text-muted);
+        }
+
+        .form-control {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: #fff;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 10px rgba(52, 152, 219, 0.2);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        select.form-control {
+            cursor: pointer;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.25);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(52, 152, 219, 0.35);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .btn-disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .button-bar {
+            margin-top: 30px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* 图像对比视图 */
+        .preview-container {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .preview-box {
+            flex: 1;
+            min-width: 280px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .preview-box img {
+            max-width: 100%;
+            max-height: 380px;
+            border-radius: 8px;
+            object-fit: contain;
+        }
+
+        .preview-box-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-top: 10px;
+            color: var(--text-muted);
+        }
+
+        /* 加载指示器 */
+        .loader-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 20, 28, 0.95);
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            backdrop-filter: blur(12px);
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(52, 152, 219, 0.1);
+            border-left-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loader-text {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        /* 分组卡片 */
+        .param-group-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .param-group-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: var(--primary);
+            border-left: 3px solid var(--primary);
+            padding-left: 10px;
+        }
+
+        /* 结果展示卡片 */
+        .result-container {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .result-main {
+            flex: 1.5;
+            min-width: 320px;
+        }
+
+        .result-sidebar {
+            flex: 1;
+            min-width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .metric-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background-color: var(--primary);
+        }
+
+        .metric-value {
+            font-size: 36px;
+            font-weight: 800;
+            margin: 10px 0;
+            background: linear-gradient(135deg, #fff, var(--text-muted));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .metric-unit {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        /* 能效等级圆盘 */
+        .rating-badge-large {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 6px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 20px auto;
+            background: rgba(0, 0, 0, 0.2);
+            box-shadow: 0 0 20px rgba(52, 152, 219, 0.15);
+            transition: all 0.5s ease;
+        }
+
+        .rating-char {
+            font-size: 48px;
+            font-weight: 800;
+            color: var(--primary);
+            line-height: 1;
+        }
+
+        .rating-lbl {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* 颜色对应等级 */
+        .rating-A { border-color: var(--success); box-shadow: 0 0 20px rgba(46, 204, 113, 0.3); }
+        .rating-A .rating-char { color: var(--success); }
+        .rating-B { border-color: #85e085; box-shadow: 0 0 20px rgba(133, 224, 133, 0.3); }
+        .rating-B .rating-char { color: #85e085; }
+        .rating-C { border-color: var(--warning); box-shadow: 0 0 20px rgba(241, 196, 15, 0.3); }
+        .rating-C .rating-char { color: var(--warning); }
+        .rating-D { border-color: #e67e22; box-shadow: 0 0 20px rgba(230, 126, 34, 0.3); }
+        .rating-D .rating-char { color: #e67e22; }
+        .rating-E { border-color: var(--danger); box-shadow: 0 0 20px rgba(231, 76, 96, 0.3); }
+        .rating-E .rating-char { color: var(--danger); }
+
+        /* 图例图表 */
+        .chart-box {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            height: 320px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .breakdown-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .breakdown-table th, .breakdown-table td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+
+        .breakdown-table th {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .breakdown-color-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+
+        /* 隐藏 class */
+        .hidden {
+            display: none !important;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+
+        .history-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .history-card:hover {
+            border-color: var(--primary);
+            background: rgba(52, 152, 219, 0.08);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo-container">
+            <div class="logo-icon">B</div>
+            <div class="logo-text">OpenBIM <span>智能能耗分析平台</span></div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 13px; color: var(--text-muted);">报告编号:</span>
+                <input type="text" id="current-report-number" class="form-control" style="width: 180px; padding: 6px 12px; height: 34px;" value="">
+            </div>
+            <button class="btn btn-secondary" onclick="openHistoryDrawer()" style="padding: 6px 16px; height: 34px; font-size: 13px; border: 1px solid var(--border);">📂 历史报告</button>
+            <div class="status-badge">
+                <span class="status-dot"></span>
+                <span>M2 DA AI 语义模型就绪 (mIoU 0.787)</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 历史报告侧边抽屉 -->
+    <div id="historyDrawer" class="loader-overlay" style="background: rgba(15, 20, 28, 0.80); align-items: flex-end; justify-content: flex-end;">
+        <div style="width: 480px; height: 100%; background: #0f141c; border-left: 1px solid var(--border); box-shadow: -10px 0 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; padding: 30px; animation: slideIn 0.3s ease; position: relative; z-index: 1100;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 15px;">
+                <h3 style="font-size: 18px; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 8px;">📂 历史测评报告</h3>
+                <button class="btn btn-secondary" onclick="closeHistoryDrawer()" style="padding: 4px 10px; font-size: 16px; border: none; background: transparent;">✕</button>
+            </div>
+            <div id="historyListContainer" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; padding-right: 5px;">
+                <!-- 列表项由 JS 动态渲染 -->
+            </div>
+        </div>
+    </div>
+
+    <main>
+        <!-- 步骤向导指示条 -->
+        <div class="steps-container">
+            <div class="step-item active" onclick="gotoStep(1)">
+                <div class="step-node">1</div>
+                <div class="step-label">平面图 AI 识别</div>
+            </div>
+            <div class="step-item" onclick="gotoStep(2)">
+                <div class="step-node">2</div>
+                <div class="step-label">建筑几何与围护</div>
+            </div>
+            <div class="step-item" onclick="gotoStep(3)">
+                <div class="step-node">3</div>
+                <div class="step-label">暖通与照明系统</div>
+            </div>
+            <div class="step-item" onclick="gotoStep(4)">
+                <div class="step-node">4</div>
+                <div class="step-label">能效测评报告</div>
+            </div>
+        </div>
+
+        <!-- 步骤 1：平面图 AI 识别 -->
+        <section id="step1-card" class="view-card active">
+            <h2 class="section-title">平面图 AI 构件分割</h2>
+            <p style="color: var(--text-muted); margin-bottom: 20px; font-size: 14px;">
+                上传您的建筑平面图纸（支持 PNG、JPG、BMP 及 PDF 格式）。AI 自动识别墙体、门和窗户的几何轮廓并自动提取空间物理属性。
+            </p>
+
+            <div class="upload-wrapper" id="uploadWrapper">
+                <div class="upload-icon-large">☁️</div>
+                <div class="upload-text">点击或拖拽文件到这里上传</div>
+                <div class="upload-sub">支持常见建筑图纸格式，包含黑底CAD、白色底稿或扫描图</div>
+                <input type="file" id="rasterFileInput" class="file-input" accept="image/*,application/pdf">
+            </div>
+
+            <div id="aiRecognitionResults" class="hidden">
+                <div class="preview-container">
+                    <div class="preview-box">
+                        <img id="imgOriginal" src="" alt="原始图纸">
+                        <div class="preview-box-title">输入建筑图纸</div>
+                    </div>
+                    <div class="preview-box">
+                        <img id="imgOverlay" src="" alt="AI 构件语义识别">
+                        <div class="preview-box-title">AI 识别构件叠加图 (红墙、蓝窗、绿门)</div>
+                    </div>
+                </div>
+
+                <div class="button-bar">
+                    <div></div>
+                    <button class="btn btn-primary" onclick="gotoStep(2)">下一步：微调建筑参数 ➔</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 步骤 2：建筑参数与围护结构 -->
+        <section id="step2-card" class="view-card">
+            <h2 class="section-title">建筑几何与围护结构热工设定</h2>
+            <div class="row">
+                <!-- 建筑几何 -->
+                <div class="col-6">
+                    <div class="param-group-card">
+                        <div class="param-group-title">基础几何信息 (AI 已根据图纸自动估算)</div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-floor-area">单层建筑面积 (m²)</label>
+                            <input type="number" id="param-floor-area" class="form-control" value="120" step="0.1">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-scale">比例尺系数 (米/像素)</label>
+                            <input type="number" id="param-scale" class="form-control" value="0.05" step="0.001" oninput="updatePhysicalLengths()">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-wall-length">估算外墙总长度 (米)</label>
+                            <input type="number" id="param-wall-length" class="form-control" value="0" step="0.1" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-window-length">估算外窗总宽度 (米)</label>
+                            <input type="number" id="param-window-length" class="form-control" value="0" step="0.1" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-height">层高 (m)</label>
+                            <input type="number" id="param-height" class="form-control" value="3.2" step="0.1">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-floors">地上层数 (层)</label>
+                            <input type="number" id="param-floors" class="form-control" value="1">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-orientation">主要朝向</label>
+                            <select id="param-orientation" class="form-control">
+                                <option value="south" selected>南向 (South)</option>
+                                <option value="north">北向 (North)</option>
+                                <option value="east">东向 (East)</option>
+                                <option value="west">西向 (West)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 围护结构热工 -->
+                <div class="col-6">
+                    <div class="param-group-card">
+                        <div class="param-group-title">围护结构热工参数 (GB 50189 推荐)</div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-u-wall">外墙传热系数 U-wall (W/m²·K)</label>
+                            <input type="number" id="param-u-wall" class="form-control" value="0.55" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-u-window">外窗传热系数 U-window (W/m²·K)</label>
+                            <input type="number" id="param-u-window" class="form-control" value="2.4" step="0.1">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-u-roof">屋面传热系数 U-roof (W/m²·K)</label>
+                            <input type="number" id="param-u-roof" class="form-control" value="0.38" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-u-floor">地面传热系数 U-floor (W/m²·K)</label>
+                            <input type="number" id="param-u-floor" class="form-control" value="0.30" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-shgc">外窗太阳得热系数 (SHGC)</label>
+                            <input type="number" id="param-shgc" class="form-control" value="0.42" step="0.01">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="button-bar">
+                <button class="btn btn-secondary" onclick="gotoStep(1)">⇠ 上一步</button>
+                <button class="btn btn-primary" onclick="gotoStep(3)">下一步：暖通与照明系统 ➔</button>
+            </div>
+        </section>
+
+        <!-- 步骤 3：机电与照明系统 -->
+        <section id="step3-card" class="view-card">
+            <h2 class="section-title">暖通空调及机电设备设定</h2>
+            <div class="row">
+                <!-- 暖通空调 -->
+                <div class="col-6">
+                    <div class="param-group-card">
+                        <div class="param-group-title">空调与供暖设备系统</div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-city">建筑所在城市 (关联气候度日数)</label>
+                            <select id="param-city" class="form-control">
+                                <option value="beijing" selected>北京 (寒冷地区)</option>
+                                <option value="shanghai">上海 (夏热冬冷)</option>
+                                <option value="guangzhou">广州 (夏热冬暖)</option>
+                                <option value="harbin">哈尔滨 (严寒地区)</option>
+                                <option value="kunming">昆明 (温和地区)</option>
+                                <option value="shenzhen">深圳 (夏热冬暖)</option>
+                                <option value="xian">西安 (寒冷地区)</option>
+                                <option value="chengdu">成都 (夏热冬冷)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-heating-system">供暖系统类型</label>
+                            <select id="param-heating-system" class="form-control">
+                                <option value="heat_pump_air" selected>空气源热泵 (COP 3.2)</option>
+                                <option value="heat_pump_geo">地源热泵 (COP 4.5)</option>
+                                <option value="gas_boiler">燃气锅炉 (效率 89%)</option>
+                                <option value="district">市政集中供热 (效率 80%)</option>
+                                <option value="electric">电加热器 (效率 95%)</option>
+                                <option value="none">无供暖</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-t-heat">冬季供暖设定温度 (°C)</label>
+                            <input type="number" id="param-t-heat" class="form-control" value="20.0" step="0.5">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-cooling-system">空调制冷系统类型</label>
+                            <select id="param-cooling-system" class="form-control">
+                                <option value="vrv" selected>VRV/VRF 多联机空调 (EER 3.8)</option>
+                                <option value="central_chiller">中央冷水机组系统 (EER 5.0)</option>
+                                <option value="split_ac">家用分体空调 (EER 3.2)</option>
+                                <option value="none">无空调</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-t-cool">夏季空调设定温度 (°C)</label>
+                            <input type="number" id="param-t-cool" class="form-control" value="26.0" step="0.5">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 其他机电设备 -->
+                <div class="col-6">
+                    <div class="param-group-card">
+                        <div class="param-group-title">照明、通风与生活热水</div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-building-type">建筑功能性质</label>
+                            <select id="param-building-type" class="form-control" onchange="applyBuildingDefaults()">
+                                <option value="office" selected>写字楼 (Office)</option>
+                                <option value="commercial">零售商业 (Commercial)</option>
+                                <option value="hotel">酒店旅馆 (Hotel)</option>
+                                <option value="residential">住宅居住 (Residential)</option>
+                                <option value="school">大中小学 (School)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-lpd">照明功率密度 LPD (W/m²)</label>
+                            <input type="number" id="param-lpd" class="form-control" value="9.0" step="0.1">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-ach">换气次数 ACH (次/小时)</label>
+                            <input type="number" id="param-ach" class="form-control" value="1.0" step="0.1">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-dhw-liter">生活热水用量标准 (L/人·天)</label>
+                            <input type="number" id="param-dhw-liter" class="form-control" value="5.0" step="0.5">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-epd">设备插座功率密度 EPD (W/m²)</label>
+                            <input type="number" id="param-epd" class="form-control" value="15.0" step="0.5">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="param-op-hours">年运行时间 (小时/年)</label>
+                            <input type="number" id="param-op-hours" class="form-control" value="2500" step="50">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="button-bar">
+                <button class="btn btn-secondary" onclick="gotoStep(2)">⇠ 上一步</button>
+                <button class="btn btn-primary" onclick="calculateEnergy()">开始计算能耗并生成报告 ➔</button>
+            </div>
+        </section>
+
+        <!-- 步骤 4：能效测评报告 -->
+        <section id="step4-card" class="view-card">
+            <h2 class="section-title">建筑能效测评报告</h2>
+            
+            <div class="result-container">
+                <!-- 左侧：主要能耗看板 -->
+                <div class="result-main">
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="metric-card">
+                                <span class="metric-unit">建筑全年总能耗</span>
+                                <div class="metric-value" id="val-total-energy">--</div>
+                                <span class="metric-unit">kWh/年</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="metric-card">
+                                <span class="metric-unit">单位面积能耗指标 (EUI)</span>
+                                <div class="metric-value" id="val-eui">--</div>
+                                <span class="metric-unit">kWh/m²·a</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 分项能耗图表 -->
+                    <div class="chart-box">
+                        <canvas id="energyBreakdownChart"></canvas>
+                    </div>
+
+                    <!-- 分项明细表格 -->
+                    <table class="breakdown-table">
+                        <thead>
+                            <tr>
+                                <th>能耗类别</th>
+                                <th>年耗电量 (kWh)</th>
+                                <th>单位面积能耗 (kWh/m²·a)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="breakdown-tbody">
+                            <!-- 由 JS 填充 -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="result-sidebar">
+                    <div class="metric-card" style="padding: 10px;">
+                        <span class="metric-unit">设计能效等级</span>
+                        <div class="rating-badge-large rating-C" id="rating-badge">
+                            <span class="rating-char" id="rating-val">C</span>
+                            <span class="rating-lbl" id="rating-label">节能</span>
+                        </div>
+                        <p id="rating-desc" style="font-size: 13px; color: var(--text-muted); line-height: 1.4;">
+                            满足公共建筑节能设计标准基本要求。
+                        </p>
+                    </div>
+
+                    <div class="param-group-card">
+                        <div class="param-group-title">AI 提取的空间结构汇总</div>
+                        <div style="font-size: 14px; display: flex; flex-direction: column; gap: 8px;">
+                            <div style="display:flex; justify-content:space-between;">
+                                <span style="color:var(--text-muted)">地上总面积:</span>
+                                <span id="res-geo-floor" style="font-weight:600">-- m²</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between;">
+                                <span style="color:var(--text-muted)">外墙表面积:</span>
+                                <span id="res-geo-wall" style="font-weight:600">-- m²</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between;">
+                                <span style="color:var(--text-muted)">外窗表面积:</span>
+                                <span id="res-geo-win" style="font-weight:600">-- m²</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between;">
+                                <span style="color:var(--text-muted)">窗墙面积比 (WWR):</span>
+                                <span id="res-geo-wwr" style="font-weight:600">--</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between;">
+                                <span style="color:var(--text-muted)">计算所在城市:</span>
+                                <span id="res-climate-city" style="font-weight:600">--</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 10px; width: 100%;">
+                        <button class="btn btn-secondary" onclick="window.print()" style="flex:1;">🖨 打印报告</button>
+                        <button class="btn btn-primary" onclick="gotoStep(1)" style="flex:1;">重新评测</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 加载动画弹窗 -->
+    <div class="loader-overlay" id="loaderOverlay">
+        <div class="spinner"></div>
+        <div class="loader-text" id="loaderText">正在分析图纸空间属性...</div>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        let reportNumber = '';
+        let aiResultData = null;
+        let chartInstance = null;
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            generateReportNumber();
+            setupUpload();
+            applyBuildingDefaults();
+            
+            // 点击抽屉外面关闭抽屉
+            document.getElementById('historyDrawer').addEventListener('click', (e) => {
+                if (e.target.id === 'historyDrawer') {
+                    closeHistoryDrawer();
+                }
+            });
+        });
+
+        // 生成唯一报告编号
+        function generateReportNumber() {
+            const date = new Date();
+            const yyyymmdd = date.getFullYear() + 
+                String(date.getMonth() + 1).padStart(2, '0') + 
+                String(date.getDate()).padStart(2, '0');
+            const random = Math.floor(1000 + Math.random() * 9000);
+            reportNumber = `BIM-${yyyymmdd}-${random}`;
+            document.getElementById('current-report-number').value = reportNumber;
+        }
+
+        // 比例尺变化时，更新实际物理长度
+        function updatePhysicalLengths() {
+            if (!aiResultData || !aiResultData.pixel_lengths) return;
+            const scale = parseFloat(document.getElementById('param-scale').value) || 0.05;
+            
+            const wall_px = aiResultData.pixel_lengths.wall_px || 0;
+            const win_px = aiResultData.pixel_lengths.window_px || 0;
+            
+            document.getElementById('param-wall-length').value = (wall_px * scale).toFixed(1);
+            document.getElementById('param-window-length').value = (win_px * scale).toFixed(1);
+        }
+
+        // 步骤导航逻辑
+        function gotoStep(step) {
+            if (step === 2 && !aiResultData) {
+                alert("请先上传建筑平面图并完成 AI 识别！");
+                return;
+            }
+            if (step === 4 && !aiResultData) {
+                alert("请先进行能耗分析！");
+                return;
+            }
+
+            document.querySelectorAll('.step-item').forEach((item, index) => {
+                if (index + 1 === step) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+                
+                if (index + 1 < step) {
+                    item.classList.add('completed');
+                } else {
+                    item.classList.remove('completed');
+                }
+            });
+
+            document.querySelectorAll('.view-card').forEach((card, index) => {
+                if (index + 1 === step) {
+                    card.classList.add('active');
+                } else {
+                    card.classList.remove('active');
+                }
+            });
+
+            currentStep = step;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // 上传与识别逻辑
+        function setupUpload() {
+            const uploadWrapper = document.getElementById('uploadWrapper');
+            const fileInput = document.getElementById('rasterFileInput');
+
+            uploadWrapper.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadWrapper.style.borderColor = 'var(--primary)';
+            });
+
+            uploadWrapper.addEventListener('dragleave', () => {
+                uploadWrapper.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+            });
+
+            uploadWrapper.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadWrapper.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+                if (e.dataTransfer.files.length > 0) {
+                    handleFile(e.dataTransfer.files[0]);
+                }
+            });
+
+            fileInput.addEventListener('change', () => {
+                if (fileInput.files.length > 0) {
+                    handleFile(fileInput.files[0]);
+                }
+            });
+        }
+
+        // 发送文件到后台进行 AI 构件分割
+        async function handleFile(file) {
+            const fd = new FormData();
+            fd.append('raster_file', file);
+            fd.append('preprocessing', 'auto');
+            
+            const repNumInput = document.getElementById('current-report-number').value.trim();
+            if (repNumInput) {
+                reportNumber = repNumInput;
+            }
+            fd.append('report_number', reportNumber);
+            
+            showLoader("ONNX 引擎正在提取空间构件 (红墙/蓝窗/绿门)...");
+
+            try {
+                const response = await fetch('/energy/ai_recognize', {
+                    method: 'POST',
+                    body: fd
+                });
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                aiResultData = data;
+                
+                document.getElementById('imgOriginal').src = 'data:image/jpeg;base64,' + data.images.original;
+                document.getElementById('imgOverlay').src = 'data:image/jpeg;base64,' + data.images.overlay;
+                document.getElementById('aiRecognitionResults').classList.remove('hidden');
+
+                const total_pixels = data.image_size[0] * data.image_size[1];
+                const scale = 0.05;
+                document.getElementById('param-scale').value = scale;
+                
+                const defaultFloorArea = Math.round(total_pixels * (scale ** 2) * 0.3);
+                document.getElementById('param-floor-area').value = defaultFloorArea;
+
+                updatePhysicalLengths();
+                gotoStep(2);
+
+            } catch (error) {
+                alert("识别图纸失败: " + error.message);
+            } finally {
+                hideLoader();
+            }
+        }
+
+        function applyBuildingDefaults() {
+            const btype = document.getElementById('param-building-type').value;
+            const defaults = {
+                office: { lpd: 9.0, epd: 15.0, ach: 1.0, dhw: 5.0, hours: 2500 },
+                commercial: { lpd: 12.0, epd: 20.0, ach: 1.5, dhw: 3.0, hours: 3500 },
+                hotel: { lpd: 10.0, epd: 10.0, ach: 1.2, dhw: 80.0, hours: 8760 },
+                residential: { lpd: 6.0, epd: 8.0, ach: 0.5, dhw: 50.0, hours: 5000 },
+                school: { lpd: 9.0, epd: 10.0, ach: 1.5, dhw: 5.0, hours: 2000 }
+            };
+            const d = defaults[btype] || defaults.office;
+            document.getElementById('param-lpd').value = d.lpd;
+            document.getElementById('param-epd').value = d.epd;
+            document.getElementById('param-ach').value = d.ach;
+            document.getElementById('param-dhw-liter').value = d.dhw;
+            document.getElementById('param-op-hours').value = d.hours;
+        }
+
+        async function calculateEnergy() {
+            showLoader("正在运用度日数负荷模型与机电 COP 耦合求解能耗...");
+
+            const repNumInput = document.getElementById('current-report-number').value.trim();
+            if (repNumInput) {
+                reportNumber = repNumInput;
+            }
+
+            const params = {
+                report_number: reportNumber,
+                scale: parseFloat(document.getElementById('param-scale').value),
+                height: parseFloat(document.getElementById('param-height').value),
+                floors: parseInt(document.getElementById('param-floors').value),
+                floor_area_m2: parseFloat(document.getElementById('param-floor-area').value),
+                orientation: document.getElementById('param-orientation').value,
+                
+                u_wall: parseFloat(document.getElementById('param-u-wall').value),
+                u_win: parseFloat(document.getElementById('param-u-window').value),
+                u_roof: parseFloat(document.getElementById('param-u-roof').value),
+                u_floor: parseFloat(document.getElementById('param-u-floor').value),
+                shgc: parseFloat(document.getElementById('param-shgc').value),
+                
+                city_id: document.getElementById('param-city').value,
+                heating_system: document.getElementById('param-heating-system').value,
+                t_heat: parseFloat(document.getElementById('param-t-heat').value),
+                cooling_system: document.getElementById('param-cooling-system').value,
+                t_cool: parseFloat(document.getElementById('param-t-cool').value),
+                
+                building_type: document.getElementById('param-building-type').value,
+                lpd: parseFloat(document.getElementById('param-lpd').value),
+                ach: parseFloat(document.getElementById('param-ach').value),
+                dhw_liter_pp: parseFloat(document.getElementById('param-dhw-liter').value),
+                epd: parseFloat(document.getElementById('param-epd').value),
+                op_hours: parseFloat(document.getElementById('param-op-hours').value)
+            };
+
+            try {
+                const response = await fetch('/energy/ai_simulate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(params)
+                });
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                displayResults(data);
+                gotoStep(4);
+
+            } catch (error) {
+                alert("能耗计算失败: " + error.message);
+            } finally {
+                hideLoader();
+            }
+        }
+
+        function displayResults(data) {
+            document.getElementById('val-total-energy').innerText = data.summary.total_energy_kwh.toLocaleString();
+            document.getElementById('val-eui').innerText = data.summary.eui;
+            
+            const badge = document.getElementById('rating-badge');
+            badge.className = 'rating-badge-large rating-' + data.summary.rating;
+            document.getElementById('rating-val').innerText = data.summary.rating;
+            document.getElementById('rating-label').innerText = data.summary.rating_label;
+
+            const descriptions = {
+                'A': '超低能耗建筑。能效极佳，达到国际领先水平。',
+                'B': '低能耗建筑。采用高标准围护与高效率机电设备。',
+                'C': '国家节能标准水平。符合 GB 50189-2015 节能基本限制。',
+                'D': '一般水准。能耗适中，有较大节能升级空间。',
+                'E': '高能耗建筑。建议优化围护结构材料或升级高效热泵/空调。'
+            };
+            document.getElementById('rating-desc').innerText = descriptions[data.summary.rating] || '';
+
+            document.getElementById('res-geo-floor').innerText = data.geometry_used.total_area_m2 + ' m²';
+            document.getElementById('res-geo-wall').innerText = data.geometry_used.wall_area_m2 + ' m²';
+            document.getElementById('res-geo-win').innerText = data.geometry_used.window_area_m2 + ' m²';
+            document.getElementById('res-geo-wwr').innerText = data.geometry_used.wwr;
+            document.getElementById('res-climate-city').innerText = data.climate.city + ' (' + data.climate.zone + ')';
+
+            const tbody = document.getElementById('breakdown-tbody');
+            tbody.innerHTML = '';
+            
+            const categories = [
+                { key: 'heating', name: '冬季供暖能耗', color: '#ff6b6b' },
+                { key: 'cooling', name: '夏季制冷能耗', color: '#54a0ff' },
+                { key: 'lighting', name: '室内照明能耗', color: '#feca57' },
+                { key: 'equipment', name: '机电插座能耗', color: '#1dd1a1' },
+                { key: 'ventilation', name: '新风通风能耗', color: '#00d2d3' },
+                { key: 'dhw', name: '生活热水能耗', color: '#ff9ff3' }
+            ];
+
+            const chartLabels = [];
+            const chartData = [];
+            const chartColors = [];
+
+            categories.forEach(cat => {
+                const kwh = data.breakdown_kwh[cat.key] || 0;
+                const eui = data.breakdown_eui[cat.key] || 0;
+                
+                chartLabels.push(cat.name);
+                chartData.push(kwh);
+                chartColors.push(cat.color);
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><span class="breakdown-color-indicator" style="background:${cat.color}"></span>${cat.name}</td>
+                    <td style="font-weight:600">${Math.round(kwh).toLocaleString()}</td>
+                    <td>${eui.toFixed(2)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            const ctx = document.getElementById('energyBreakdownChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: chartLabels,
+                    datasets: [{
+                        data: chartData,
+                        backgroundColor: chartColors,
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                color: '#a4b0be',
+                                font: { size: 12, family: 'Outfit, Noto Sans SC' }
+                            }
+                        }
+                    },
+                    cutout: '65%'
+                }
+            });
+        }
+
+        async function openHistoryDrawer() {
+            const container = document.getElementById('historyListContainer');
+            container.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px;">正在加载历史记录...</div>';
+            document.getElementById('historyDrawer').style.display = 'flex';
+
+            try {
+                const response = await fetch('/energy/reports');
+                const list = await response.json();
+                
+                if (!list || list.length === 0) {
+                    container.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px;">暂无历史测评报告</div>';
+                    return;
+                }
+
+                container.innerHTML = '';
+                list.forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = 'history-card';
+                    card.onclick = () => loadReportDetails(item.report_number);
+                    
+                    const timeStr = new Date(item.created_at).toLocaleString('zh-CN', { hour12: false });
+                    card.innerHTML = `
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                            <span style="font-weight:700; color:var(--primary); font-size:14px;">${item.report_number}</span>
+                            <span style="background:rgba(255,255,255,0.06); padding:2px 8px; border-radius:4px; font-size:11px; color:var(--text-muted);">${timeStr}</span>
+                        </div>
+                        <div style="font-size:12px; display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                            <div>面积: <span style="color:#fff; font-weight:600;">${item.floor_area} m²</span></div>
+                            <div>EUI: <span style="color:#fff; font-weight:600;">${item.eui} kWh/m²a</span></div>
+                            <div>总能耗: <span style="color:#fff; font-weight:600;">${Math.round(item.total_energy).toLocaleString()} kWh</span></div>
+                            <div>能效评级: <span class="rating-char" style="font-size:13px; font-weight:800; color:${getRatingColor(item.rating)}">${item.rating}</span></div>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            } catch (err) {
+                container.innerHTML = `<div style="color:var(--danger);text-align:center;padding:20px;">加载失败: ${err.message}</div>`;
+            }
+        }
+
+        function getRatingColor(rating) {
+            const colors = { 'A': '#2ecc71', 'B': '#85e085', 'C': '#f1c40f', 'D': '#e67e22', 'E': '#e74c3c' };
+            return colors[rating] || '#a4b0be';
+        }
+
+        function closeHistoryDrawer() {
+            document.getElementById('historyDrawer').style.display = 'none';
+        }
+
+        async function loadReportDetails(repNum) {
+            closeHistoryDrawer();
+            showLoader(`正在加载报告 ${repNum} 的配置参数...`);
+
+            try {
+                const response = await fetch(`/energy/report/${repNum}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                reportNumber = data.report_number;
+                document.getElementById('current-report-number').value = reportNumber;
+
+                const p = data.params;
+                
+                document.getElementById('param-scale').value = p.scale || 0.05;
+                document.getElementById('param-floor-area').value = p.floor_area_m2 || 120;
+                document.getElementById('param-height').value = p.height || 3.2;
+                document.getElementById('param-floors').value = p.floors || 1;
+                document.getElementById('param-orientation').value = p.orientation || 'south';
+                
+                document.getElementById('param-u-wall').value = p.u_wall || 0.55;
+                document.getElementById('param-u-window').value = p.u_win || 2.4;
+                document.getElementById('param-u-roof').value = p.u_roof || 0.38;
+                document.getElementById('param-u-floor').value = p.u_floor || 0.30;
+                document.getElementById('param-shgc').value = p.shgc || 0.42;
+
+                document.getElementById('param-city').value = p.city_id || 'beijing';
+                document.getElementById('param-heating-system').value = p.heating_system || 'heat_pump_air';
+                document.getElementById('param-t-heat').value = p.t_heat || 20.0;
+                document.getElementById('param-cooling-system').value = p.cooling_system || 'vrv';
+                document.getElementById('param-t-cool').value = p.t_cool || 26.0;
+
+                document.getElementById('param-building-type').value = p.building_type || 'office';
+                document.getElementById('param-lpd').value = p.lpd || 9.0;
+                document.getElementById('param-ach').value = p.ach || 1.0;
+                document.getElementById('param-dhw-liter').value = p.dhw_liter_pp || 5.0;
+                document.getElementById('param-epd').value = p.epd || 15.0;
+                document.getElementById('param-op-hours').value = p.op_hours || 2500;
+
+                aiResultData = {
+                    image_size: [1000, 1000],
+                    pixel_lengths: {
+                        wall_px: ((p.geometry?.wall_area_m2 || 0) / p.height / p.scale) || 0,
+                        window_px: ((p.geometry?.window_area_m2 || 0) / p.height / p.scale) || 0
+                    }
+                };
+                updatePhysicalLengths();
+
+                displayResults(data.results);
+                gotoStep(4);
+
+            } catch (err) {
+                alert(`加载历史报告失败: ${err.message}`);
+            } finally {
+                hideLoader();
+            }
+        }
+
+        function showLoader(text) {
+            document.getElementById('loaderText').innerText = text;
+            document.getElementById('loaderOverlay').style.display = 'flex';
+        }
+
+        function hideLoader() {
+            document.getElementById('loaderOverlay').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

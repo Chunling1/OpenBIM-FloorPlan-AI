@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>BIM 平面图语义标注工具</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #22262f; --border: #2d3240;
+    --text: #e4e8f1; --text2: #8b93a8; --accent: #6c5ce7;
+    --wall: #e74c3c; --window: #3498db; --door: #2ecc71; --eraser: #95a5a6;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+    font-family: 'Outfit','Noto Sans SC',sans-serif;
+    background: var(--bg); color: var(--text);
+    height: 100vh; overflow: hidden;
+    display: flex; flex-direction: column;
+}
+.topbar {
+    height: 52px; background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 16px; gap: 16px; flex-shrink: 0;
+}
+.topbar .logo { font-size: 16px; font-weight: 700; color: var(--accent); }
+.topbar .info { font-size: 12px; color: var(--text2); }
+.topbar .stats { font-size: 13px; color: var(--text2); margin-left: auto; }
+.topbar .stats b { color: var(--text); }
+.main { display: flex; flex: 1; overflow: hidden; }
+
+/* 左侧文件列表 */
+.sidebar {
+    width: 210px; background: var(--surface); border-right: 1px solid var(--border);
+    overflow-y: auto; flex-shrink: 0;
+}
+.sidebar .stitle { padding:12px 14px 8px; font-size:12px; font-weight:600; color:var(--text2); text-transform:uppercase; letter-spacing:1px; }
+.file-item {
+    padding:8px 14px; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:8px;
+    border-left:3px solid transparent; transition:all .15s;
+}
+.file-item:hover { background:var(--surface2); }
+.file-item.active { background:rgba(108,92,231,.15); border-left-color:var(--accent); }
+.file-item .dot { width:8px;height:8px;border-radius:50%;background:#444;flex-shrink:0; }
+.file-item .dot.done { background:var(--door); }
+.file-item .name { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.add-btn {
+    margin:8px 14px; padding:10px; background:var(--surface2); border:1px dashed var(--border);
+    border-radius:8px; color:var(--text2); font-size:13px; cursor:pointer; text-align:center;
+    transition:all .2s;
+}
+.add-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+/* 画布 */
+.canvas-area { flex:1; position:relative; overflow:hidden; background:#0a0c12; cursor:crosshair; }
+.canvas-wrapper { position:absolute; transform-origin:0 0; }
+canvas { display:block; position:absolute; top:0;left:0; }
+#bgCanvas { z-index:1; } #maskCanvas { z-index:2; } #cursorCanvas { z-index:3;pointer-events:none; }
+.empty-hint {
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:12px;color:var(--text2);font-size:15px;z-index:0;
+}
+.empty-hint .big { font-size:48px; }
+
+/* 右侧工具栏 */
+.toolbar {
+    width:220px; background:var(--surface); border-left:1px solid var(--border);
+    padding:16px; display:flex; flex-direction:column; gap:14px; flex-shrink:0; overflow-y:auto;
+}
+.tool-section { display:flex;flex-direction:column;gap:6px; }
+.tool-label { font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:1px; }
+.tool-btn {
+    padding:10px 14px; border:2px solid var(--border); border-radius:8px; background:var(--surface2);
+    color:var(--text); font-size:13px; font-weight:500; cursor:pointer;
+    display:flex; align-items:center; gap:8px; transition:all .15s;
+}
+.tool-btn:hover { border-color:#555; }
+.tool-btn.active { border-color:var(--accent); background:rgba(108,92,231,.15); }
+.tool-btn .sw { width:16px;height:16px;border-radius:4px;border:1px solid rgba(255,255,255,.2); }
+.slider-row { display:flex;align-items:center;gap:8px; }
+.slider-row input[type=range] { flex:1;accent-color:var(--accent); }
+.slider-row .val { font-size:13px;color:var(--text2);min-width:30px;text-align:right; }
+.action-btn {
+    padding:11px; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; transition:all .2s;
+}
+.action-btn.primary { background:linear-gradient(135deg,var(--accent),#a855f7);color:#fff; }
+.action-btn.primary:hover { filter:brightness(1.15);transform:translateY(-1px); }
+.action-btn.danger { background:rgba(231,76,60,.2);color:var(--wall);border:1px solid rgba(231,76,60,.3); }
+.action-btn.danger:hover { background:rgba(231,76,60,.35); }
+.action-btn.sec { background:var(--surface2);color:var(--text);border:1px solid var(--border); }
+.action-btn.sec:hover { border-color:#555; }
+.shortcuts {
+    margin-top:auto; padding:10px; background:var(--surface2); border-radius:8px;
+    font-size:11px; color:var(--text2); line-height:1.8;
+}
+.shortcuts b { color:var(--text); }
+.shortcuts kbd {
+    background:var(--bg);padding:1px 5px;border-radius:3px;font-family:monospace;font-size:11px;
+    color:var(--accent);border:1px solid var(--border);
+}
+.statusbar {
+    height:26px; background:var(--surface); border-top:1px solid var(--border);
+    display:flex; align-items:center; padding:0 12px; font-size:11px; color:var(--text2); gap:20px; flex-shrink:0;
+}
+.toast {
+    position:fixed;top:60px;right:20px;background:var(--door);color:#fff;padding:10px 18px;
+    border-radius:8px;font-size:13px;font-weight:600;z-index:9999;opacity:0;transform:translateY(-10px);
+    transition:all .3s;pointer-events:none;
+}
+.toast.show { opacity:1;transform:translateY(0); }
+input[type=file] { display:none; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+    <div class="logo">🏗️ BIM 语义标注工具</div>
+    <div class="info">墙/窗/门 像素级标注 → 导出 mask.npy</div>
+    <div class="stats" id="gStats"></div>
+</div>
+
+<div class="main">
+    <div class="sidebar">
+        <div class="stitle">📁 图纸列表</div>
+        <div id="fileList"></div>
+        <div class="add-btn" onclick="document.getElementById('fileInput').click()">＋ 添加图片</div>
+        <input type="file" id="fileInput" accept="image/*" multiple>
+    </div>
+
+    <div class="canvas-area" id="canvasArea">
+        <div class="empty-hint" id="emptyHint">
+            <div class="big">📐</div>
+            <div>点击左下角「添加图片」<br>或直接拖拽图片到窗口</div>
+        </div>
+        <div class="canvas-wrapper" id="wrap">
+            <canvas id="bgCanvas"></canvas>
+            <canvas id="maskCanvas"></canvas>
+            <canvas id="cursorCanvas"></canvas>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        <div class="tool-section">
+            <div class="tool-label">画笔工具</div>
+            <button class="tool-btn active" data-tool="wall"><span class="sw" style="background:var(--wall)"></span>墙体 (W)</button>
+            <button class="tool-btn" data-tool="window"><span class="sw" style="background:var(--window)"></span>窗户 (E)</button>
+            <button class="tool-btn" data-tool="door"><span class="sw" style="background:var(--door)"></span>门 (D)</button>
+            <button class="tool-btn" data-tool="eraser"><span class="sw" style="background:var(--eraser)"></span>橡皮擦 (X)</button>
+        </div>
+        <div class="tool-section">
+            <div class="tool-label">画笔大小</div>
+            <div class="slider-row">
+                <input type="range" id="brSize" min="1" max="80" value="12">
+                <span class="val" id="brVal">12</span>
+            </div>
+        </div>
+        <div class="tool-section">
+            <div class="tool-label">标注透明度</div>
+            <div class="slider-row">
+                <input type="range" id="opSlider" min="10" max="90" value="50">
+                <span class="val" id="opVal">50%</span>
+            </div>
+        </div>
+        <div class="tool-section">
+            <div class="tool-label">操作</div>
+            <button class="action-btn primary" onclick="saveCurrent()">💾 保存标注 (Ctrl+S)</button>
+            <button class="action-btn sec" onclick="undo()">↩️ 撤销 (Ctrl+Z)</button>
+            <button class="action-btn danger" onclick="clearMask()">🗑️ 清除标注</button>
+        </div>
+        <div class="tool-section">
+            <div class="tool-label">导出</div>
+            <button class="action-btn sec" onclick="exportAllMasks()">📦 导出全部 mask (ZIP)</button>
+        </div>
+        <div class="tool-section">
+            <div class="tool-label">导航</div>
+            <div style="display:flex;gap:6px">
+                <button class="action-btn sec" style="flex:1" onclick="nav(-1)">⬆ 上 (A)</button>
+                <button class="action-btn sec" style="flex:1" onclick="nav(1)">⬇ 下 (S)</button>
+            </div>
+        </div>
+        <div class="shortcuts">
+            <b>快捷键</b><br>
+            <kbd>W</kbd>墙 <kbd>E</kbd>窗 <kbd>D</kbd>门 <kbd>X</kbd>擦<br>
+            <kbd>[</kbd><kbd>]</kbd>笔刷 <kbd>Ctrl+S</kbd>存 <kbd>Ctrl+Z</kbd>撤<br>
+            <kbd>A</kbd>/<kbd>S</kbd>上/下张 <kbd>滚轮</kbd>缩放<br>
+            <kbd>空格+拖</kbd>平移
+        </div>
+    </div>
+</div>
+<div class="statusbar">
+    <span id="stPos">X:0 Y:0</span>
+    <span id="stZoom">100%</span>
+    <span id="stSize">-</span>
+    <span id="stFile">未加载</span>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+const bgC=document.getElementById('bgCanvas'), mkC=document.getElementById('maskCanvas'), crC=document.getElementById('cursorCanvas');
+const bgX=bgC.getContext('2d'), mkX=mkC.getContext('2d'), crX=crC.getContext('2d');
+const area=document.getElementById('canvasArea'), wrap=document.getElementById('wrap');
+
+let files=[], curIdx=-1, tool='wall', brush=12, drawing=false, panning=false, spaceKey=false;
+let zoom=1, px=0, py=0, lpx=0, lpy=0, lmx=0, lmy=0;
+let undoStack=[], saved={};
+const COLORS={wall:{r:231,g:76,b:60},window:{r:52,g:152,b:219},door:{r:46,g:204,b:113},eraser:null};
+
+// === 文件加载 ===
+document.getElementById('fileInput').addEventListener('change',e=>{
+    Array.from(e.target.files).forEach(f=>{
+        if(!f.type.startsWith('image/'))return;
+        const r=new FileReader();
+        r.onload=ev=>{
+            files.push({name:f.name,dataURL:ev.target.result,labeled:false});
+            renderList();
+            if(files.length===1)loadImg(0);
+        };
+        r.readAsDataURL(f);
+    });
+    e.target.value='';
+});
+
+// 拖拽支持
+document.body.addEventListener('dragover',e=>{e.preventDefault();});
+document.body.addEventListener('drop',e=>{
+    e.preventDefault();
+    Array.from(e.dataTransfer.files).forEach(f=>{
+        if(!f.type.startsWith('image/'))return;
+        const r=new FileReader();
+        r.onload=ev=>{
+            files.push({name:f.name,dataURL:ev.target.result,labeled:false});
+            renderList();
+            if(files.length===1)loadImg(0);
+        };
+        r.readAsDataURL(f);
+    });
+});
+
+function renderList(){
+    const el=document.getElementById('fileList');
+    el.innerHTML=files.map((f,i)=>`
+        <div class="file-item ${i===curIdx?'active':''}" onclick="loadImg(${i})">
+            <span class="dot ${f.labeled?'done':''}"></span>
+            <span class="name" title="${f.name}">${f.name}</span>
+        </div>`).join('');
+    updateStats();
+}
+
+function updateStats(){
+    const done=files.filter(f=>f.labeled).length;
+    document.getElementById('gStats').innerHTML=`已标注: <b>${done}</b>/${files.length}`;
+}
+
+// === 加载图片 ===
+function loadImg(idx){
+    if(idx<0||idx>=files.length)return;
+    // 保存当前mask
+    if(curIdx>=0&&curIdx<files.length) saveMaskToMemory();
+    curIdx=idx; renderList(); undoStack=[];
+    document.getElementById('emptyHint').style.display='none';
+    const img=new Image();
+    img.onload=()=>{
+        const w=img.width,h=img.height;
+        [bgC,mkC,crC].forEach(c=>{c.width=w;c.height=h;});
+        bgX.drawImage(img,0,0);
+        mkX.clearRect(0,0,w,h);
+        mkC.style.opacity=parseFloat(document.getElementById('opSlider').value)/100;
+        // 还原已有mask
+        if(saved[files[idx].name]){
+            const mimg=new Image();
+            mimg.onload=()=>mkX.drawImage(mimg,0,0);
+            mimg.src=saved[files[idx].name];
+        }
+        const aw=area.clientWidth,ah=area.clientHeight;
+        zoom=Math.min(aw/w,ah/h,1)*.95;
+        px=(aw-w*zoom)/2; py=(ah-h*zoom)/2;
+        applyTx();
+        document.getElementById('stSize').textContent=`${w}×${h}`;
+        document.getElementById('stFile').textContent=files[idx].name;
+    };
+    img.src=files[idx].dataURL;
+}
+
+function saveMaskToMemory(){
+    if(curIdx<0)return;
+    saved[files[curIdx].name]=mkC.toDataURL('image/png');
+}
+
+function applyTx(){
+    wrap.style.transform=`translate(${px}px,${py}px) scale(${zoom})`;
+    document.getElementById('stZoom').textContent=Math.round(zoom*100)+'%';
+}
+
+// === 绘制 ===
+function cPos(e){ const r=area.getBoundingClientRect(); return{x:(e.clientX-r.left-px)/zoom,y:(e.clientY-r.top-py)/zoom}; }
+
+function paint(ctx,x1,y1,x2,y2,r,t){
+    const c=COLORS[t];
+    ctx.save();
+    if(!c){ ctx.globalCompositeOperation='destination-out'; }
+    else { ctx.globalCompositeOperation='source-over'; ctx.strokeStyle=ctx.fillStyle=`rgba(${c.r},${c.g},${c.b},1)`; }
+    ctx.lineWidth=r*2; ctx.lineCap='round';
+    if(x2===null){ ctx.beginPath();ctx.arc(x1,y1,r,0,Math.PI*2);ctx.fill(); }
+    else { ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke(); }
+    ctx.restore();
+}
+
+function saveUndo(){ undoStack.push(mkX.getImageData(0,0,mkC.width,mkC.height)); if(undoStack.length>30)undoStack.shift(); }
+function undo(){ if(!undoStack.length)return; mkX.putImageData(undoStack.pop(),0,0); }
+
+area.addEventListener('mousedown',e=>{
+    if(e.button===1||spaceKey){panning=true;lpx=e.clientX;lpy=e.clientY;area.style.cursor='grabbing';e.preventDefault();return;}
+    if(e.button!==0)return;
+    drawing=true; saveUndo();
+    const p=cPos(e); paint(mkX,p.x,p.y,null,null,brush,tool); lmx=p.x;lmy=p.y;
+});
+area.addEventListener('mousemove',e=>{
+    const p=cPos(e);
+    document.getElementById('stPos').textContent=`X:${Math.round(p.x)} Y:${Math.round(p.y)}`;
+    crX.clearRect(0,0,crC.width,crC.height);
+    const c=COLORS[tool];
+    crX.strokeStyle=c?`rgba(${c.r},${c.g},${c.b},.6)`:'rgba(255,255,255,.6)';
+    crX.lineWidth=1.5; crX.beginPath(); crX.arc(p.x,p.y,brush,0,Math.PI*2); crX.stroke();
+    if(panning){px+=e.clientX-lpx;py+=e.clientY-lpy;lpx=e.clientX;lpy=e.clientY;applyTx();return;}
+    if(!drawing)return;
+    paint(mkX,lmx,lmy,p.x,p.y,brush,tool); lmx=p.x;lmy=p.y;
+});
+area.addEventListener('mouseup',()=>{drawing=false;panning=false;area.style.cursor=spaceKey?'grab':'crosshair';});
+area.addEventListener('mouseleave',()=>{drawing=false;panning=false;crX.clearRect(0,0,crC.width,crC.height);});
+area.addEventListener('wheel',e=>{
+    e.preventDefault();
+    const r=area.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+    const oz=zoom; zoom=Math.max(.05,Math.min(20,zoom*(e.deltaY<0?1.12:.89)));
+    px=mx-(mx-px)*zoom/oz; py=my-(my-py)*zoom/oz; applyTx();
+},{passive:false});
+
+// === 键盘 ===
+document.addEventListener('keydown',e=>{
+    if(e.code==='Space'){spaceKey=true;area.style.cursor='grab';e.preventDefault();}
+    if(e.key==='w'||e.key==='W')setTool('wall');
+    if(e.key==='e'||e.key==='E')setTool('window');
+    if(e.key==='d'||e.key==='D')setTool('door');
+    if(e.key==='x'||e.key==='X')setTool('eraser');
+    if(e.key==='a'||e.key==='A')nav(-1);
+    if(e.key==='s'&&!e.ctrlKey)nav(1);
+    if(e.key==='['){brush=Math.max(1,brush-3);updBr();}
+    if(e.key===']'){brush=Math.min(80,brush+3);updBr();}
+    if(e.ctrlKey&&e.key==='s'){e.preventDefault();saveCurrent();}
+    if(e.ctrlKey&&e.key==='z'){e.preventDefault();undo();}
+});
+document.addEventListener('keyup',e=>{if(e.code==='Space'){spaceKey=false;area.style.cursor='crosshair';}});
+
+function setTool(t){tool=t;document.querySelectorAll('.tool-btn').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));}
+document.querySelectorAll('.tool-btn').forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
+document.getElementById('brSize').addEventListener('input',e=>{brush=+e.target.value;document.getElementById('brVal').textContent=brush;});
+function updBr(){document.getElementById('brSize').value=brush;document.getElementById('brVal').textContent=brush;}
+document.getElementById('opSlider').addEventListener('input',e=>{
+    const v=+e.target.value/100; mkC.style.opacity=v; document.getElementById('opVal').textContent=Math.round(v*100)+'%';
+});
+
+function nav(d){const n=curIdx+d;if(n>=0&&n<files.length)loadImg(n);}
+function clearMask(){if(!confirm('清除当前标注？'))return;saveUndo();mkX.clearRect(0,0,mkC.width,mkC.height);}
+
+// === 保存 ===
+function saveCurrent(){
+    if(curIdx<0)return;
+    saveMaskToMemory();
+    files[curIdx].labeled=true;
+    renderList();
+    // 自动下载单张 mask PNG
+    const link=document.createElement('a');
+    const stem=files[curIdx].name.replace(/\.[^.]+$/,'');
+    link.download=stem+'_mask.png';
+    link.href=mkC.toDataURL('image/png');
+    link.click();
+    toast('✅ 已保存 '+link.download);
+}
+
+// === 导出全部 ===
+async function exportAllMasks(){
+    if(!files.length)return;
+    saveMaskToMemory();
+    if(typeof JSZip==='undefined'){toast('❌ JSZip 未加载');return;}
+    const zip=new JSZip();
+    for(const f of files){
+        const d=saved[f.name];
+        if(!d)continue;
+        const b64=d.split(',')[1];
+        const stem=f.name.replace(/\.[^.]+$/,'');
+        zip.file(stem+'_mask.png',b64,{base64:true});
+    }
+    const blob=await zip.generateAsync({type:'blob'});
+    const link=document.createElement('a');
+    link.download='cad_masks_'+new Date().toISOString().slice(0,10)+'.zip';
+    link.href=URL.createObjectURL(blob);
+    link.click();
+    toast('📦 已导出 '+Object.keys(saved).length+' 张 mask');
+}
+
+function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2500);}
+</script>
+</body>
+</html>
