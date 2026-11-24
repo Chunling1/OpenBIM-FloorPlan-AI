@@ -27,14 +27,14 @@ Contains raw floor plan images (labeled or unlabeled). Supported formats: `.png`
 
 ### `annotations/` — 标注掩码 / Annotation Masks
 
-存放与图片对应的语义分割标注掩码，格式为 NumPy `.npy` 文件。每个掩码文件的命名应与对应图片文件名一致（去掉图片扩展名，加 `.npy`）。
+存放与图片对应的语义分割标注掩码，格式为 NumPy `.npy` 文件。标注工具生成 `图片名_mask.npy`，导出脚本也支持旧格式 `图片名.npy`。
 
-Contains semantic segmentation masks corresponding to images, stored as NumPy `.npy` files. Each mask file should match the corresponding image filename (replace image extension with `.npy`).
+Contains semantic segmentation masks corresponding to images, stored as NumPy `.npy` files. The labeling tool writes `<image_stem>_mask.npy`. The exporter also accepts the older `<image_stem>.npy` format.
 
 例如 / Example:
 ```
-images/floor_001.png  →  annotations/floor_001.npy
-images/cad_002.jpg    →  annotations/cad_002.npy
+images/floor_001.png  →  annotations/floor_001_mask.npy
+images/cad_002.jpg    →  annotations/cad_002_mask.npy
 ```
 
 **标注类别 / Label Classes:**
