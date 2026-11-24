@@ -307,7 +307,7 @@ def generate_ifc(walls, windows, doors, rooms,
     # === 门窗 ===
     opening_ids = []
     for op in windows + doors:
-        op_w = op['width'] * scale
+        width_m = op['width'] * scale
         op_h = op['height'] * scale
         cx_m = op['center'][0] * scale
         cy_m = op['center'][1] * scale
@@ -319,10 +319,10 @@ def generate_ifc(walls, windows, doors, rooms,
         sill_h = 0.9 if op['type'] == 'window' else 0.0
         op_height = 1.5 if op['type'] == 'window' else 2.1
         
-        orp1 = next_id(); add(f"#{orp1}=IFCCARTESIANPOINT(({-op_w*scale/2:.4f},0.));")
-        orp2 = next_id(); add(f"#{orp2}=IFCCARTESIANPOINT(({op_w*scale/2:.4f},0.));")
-        orp3 = next_id(); add(f"#{orp3}=IFCCARTESIANPOINT(({op_w*scale/2:.4f},{op_height:.4f}));")
-        orp4 = next_id(); add(f"#{orp4}=IFCCARTESIANPOINT(({-op_w*scale/2:.4f},{op_height:.4f}));")
+        orp1 = next_id(); add(f"#{orp1}=IFCCARTESIANPOINT(({-width_m/2:.4f},0.));")
+        orp2 = next_id(); add(f"#{orp2}=IFCCARTESIANPOINT(({width_m/2:.4f},0.));")
+        orp3 = next_id(); add(f"#{orp3}=IFCCARTESIANPOINT(({width_m/2:.4f},{op_height:.4f}));")
+        orp4 = next_id(); add(f"#{orp4}=IFCCARTESIANPOINT(({-width_m/2:.4f},{op_height:.4f}));")
         opoly = next_id(); add(f"#{opoly}=IFCPOLYLINE((#{orp1},#{orp2},#{orp3},#{orp4},#{orp1}));")
         oprofile = next_id(); add(f"#{oprofile}=IFCARBITRARYCLOSEDPROFILEDEF(.AREA.,$,#{opoly});")
         
@@ -333,10 +333,10 @@ def generate_ifc(walls, windows, doors, rooms,
         
         if op['type'] == 'window':
             eid = next_id()
-            add(f"#{eid}=IFCWINDOW('{_guid()}',#{ownerid},'Window_{op['id']}',$,$,#{olp},#{oprod},$,{op_height:.2f},{op_w*scale:.2f});")
+            add(f"#{eid}=IFCWINDOW('{_guid()}',#{ownerid},'Window_{op['id']}',$,$,#{olp},#{oprod},$,{op_height:.2f},{width_m:.4f});")
         else:
             eid = next_id()
-            add(f"#{eid}=IFCDOOR('{_guid()}',#{ownerid},'Door_{op['id']}',$,$,#{olp},#{oprod},$,{op_height:.2f},{op_w*scale:.2f});")
+            add(f"#{eid}=IFCDOOR('{_guid()}',#{ownerid},'Door_{op['id']}',$,$,#{olp},#{oprod},$,{op_height:.2f},{width_m:.4f});")
         opening_ids.append(eid)
     
     # === 房间/空间 ===
