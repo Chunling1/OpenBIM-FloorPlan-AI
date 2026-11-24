@@ -37,15 +37,18 @@ images/floor_001.png  →  annotations/floor_001_mask.npy
 images/cad_002.jpg    →  annotations/cad_002_mask.npy
 ```
 
+如果同时有 `room.png` 和 `room_mask.png`，导出会跳过有歧义的 `room_mask.npy`，并列出两张候选原图。确认配对后，可把相应原图和掩码放入单独的输入目录再导出。同一批中配对明确的文件仍会导出。
+
+If both `room.png` and `room_mask.png` exist, the exporter skips the ambiguous `room_mask.npy` and lists both candidates. After verifying the pair, export it from a separate input directory. Unambiguous files in the same batch are still exported.
+
 **标注类别 / Label Classes:**
 
 | 类别 ID | 名称 | Description |
 |---------|------|-------------|
 | 0 | 背景 | Background |
 | 1 | 墙体 | Wall |
-| 2 | 门 | Door |
-| 3 | 窗户 | Window |
-| 4 | 房间 | Room |
+| 2 | 窗户 | Window |
+| 3 | 门 | Door |
 
 ### `contributors.json` — 贡献者记录 / Contributor Records
 

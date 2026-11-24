@@ -86,6 +86,28 @@ class ExportContributionTests(unittest.TestCase):
             self.assertEqual((self.masks / item['mask']).read_bytes(),
                              (source / item['mask']).read_bytes())
 
+    def test_ambiguous_mask_is_skipped_without_affecting_other_exports(self):
+        source = self.script.parent / 'ambiguous'
+        source.mkdir()
+        (source / 'room.png').write_bytes(b'new-format candidate')
+        (source / 'room_mask.png').write_bytes(b'legacy-format candidate')
+        np.save(source / 'room_mask.npy', np.ones((6, 6), dtype=np.uint8))
+        args = ('--data-dir', source, '--mask-dir', source)
+
+        with self.assertRaises(subprocess.CalledProcessError) as failure:
+            self.export('A', *args)
+        self.assertIn('Ambiguous source image: room_mask.npy', failure.exception.stdout)
+        self.assertFalse(self.records.exists())
+        self.assertFalse((self.masks / 'room_mask.npy').exists())
+
+        (source / 'suite.png').write_bytes(b'unambiguous image')
+        np.save(source / 'suite_mask.npy', np.ones((6, 6), dtype=np.uint8))
+        recorded = self.export('A', *args)
+        self.assertEqual(recorded['annotations'][0]['files'],
+                         [{'image': 'suite.png', 'mask': 'suite_mask.npy'}])
+        self.assertEqual([path.name for path in self.images.iterdir()], ['suite.png'])
+        self.assertEqual([path.name for path in self.masks.iterdir()], ['suite_mask.npy'])
+
 
 if __name__ == '__main__':
     unittest.main()

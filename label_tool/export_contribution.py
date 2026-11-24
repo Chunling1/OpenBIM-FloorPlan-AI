@@ -101,12 +101,18 @@ def export_contribution(
     }
     exported_files = []
     skipped_no_image = []
+    skipped_ambiguous = []
     already_recorded = 0
 
     for mask_path in mask_files:
         # 支持标注工具的 room_mask.npy 和旧格式 room.npy。
         stem = mask_path.stem
-        source_image = images.get(stem.removesuffix("_mask")) or images.get(stem)
+        legacy_image = images.get(stem)
+        tool_image = images.get(stem.removesuffix("_mask")) if stem.endswith("_mask") else None
+        if legacy_image is not None and tool_image is not None:
+            skipped_ambiguous.append((mask_path.name, tool_image.name, legacy_image.name))
+            continue
+        source_image = tool_image or legacy_image
         if source_image is None:
             skipped_no_image.append(mask_path.name)
             continue
@@ -132,7 +138,9 @@ def export_contribution(
 
     if already_recorded:
         print(f"已登记标注 / Previously recorded: {already_recorded}")
-    if not exported_files and already_recorded and not skipped_no_image:
+    for mask_name, tool_name, legacy_name in skipped_ambiguous:
+        print(f"跳过，原图不唯一 / Ambiguous source image: {mask_name} → {tool_name} / {legacy_name}")
+    if not exported_files and already_recorded and not skipped_no_image and not skipped_ambiguous:
         return
     if not exported_files:
         print()
