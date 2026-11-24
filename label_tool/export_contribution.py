@@ -33,16 +33,10 @@ CONTRIBUTORS_FILE = COMMUNITY_DIR / "contributors.json"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif"}
 
 
-def find_source_image(image_name: str, data_dir: Path) -> Path | None:
-    """
-    根据掩码文件名（不含 .npy 扩展名）在 data_dir 中查找对应的原始图片。
-    Find the source image in data_dir matching the mask filename (without .npy).
-    """
-    for ext in IMAGE_EXTENSIONS:
-        candidate = data_dir / f"{image_name}{ext}"
-        if candidate.exists():
-            return candidate
-    return None
+def copy_if_needed(source: Path, destination: Path) -> None:
+    """支持直接在社区目录内标注。Files already in place need no copy."""
+    if not destination.exists() or not source.samefile(destination):
+        shutil.copy2(source, destination)
 
 
 def load_contributors() -> dict:
@@ -92,26 +86,48 @@ def export_contribution(
     print(f"👤 标注者 / Annotator: {annotator_name}")
     print()
 
+    images = {}
+    for path in sorted(data_dir.iterdir()):
+        if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS:
+            images.setdefault(path.stem, path)
+
+    contributors_data = load_contributors()
+    in_place = mask_dir.samefile(COMMUNITY_MASKS)
+    recorded = {
+        (entry["image"], entry["mask"])
+        for record in contributors_data["annotations"]
+        if in_place or record["annotator"] == annotator_name
+        for entry in record["files"]
+    }
     exported_files = []
     skipped_no_image = []
+    skipped_ambiguous = []
+    already_recorded = 0
 
     for mask_path in mask_files:
-        image_name = mask_path.stem  # e.g., "floor_001"
-
-        # 查找对应的原始图片 / Find corresponding source image
-        source_image = find_source_image(image_name, data_dir)
+        # 支持标注工具的 room_mask.npy 和旧格式 room.npy。
+        stem = mask_path.stem
+        legacy_image = images.get(stem)
+        tool_image = images.get(stem.removesuffix("_mask")) if stem.endswith("_mask") else None
+        if legacy_image is not None and tool_image is not None:
+            skipped_ambiguous.append((mask_path.name, tool_image.name, legacy_image.name))
+            continue
+        source_image = tool_image or legacy_image
         if source_image is None:
             skipped_no_image.append(mask_path.name)
             continue
 
         # 复制掩码 / Copy mask
         dst_mask = COMMUNITY_MASKS / mask_path.name
-        shutil.copy2(mask_path, dst_mask)
+        copy_if_needed(mask_path, dst_mask)
 
         # 复制原始图片 / Copy source image
         dst_image = COMMUNITY_IMAGES / source_image.name
-        shutil.copy2(source_image, dst_image)
+        copy_if_needed(source_image, dst_image)
 
+        if (source_image.name, mask_path.name) in recorded:
+            already_recorded += 1
+            continue
         exported_files.append(
             {
                 "image": source_image.name,
@@ -120,6 +136,12 @@ def export_contribution(
         )
         print(f"  ✅ {source_image.name} → {mask_path.name}")
 
+    if already_recorded:
+        print(f"已登记标注 / Previously recorded: {already_recorded}")
+    for mask_name, tool_name, legacy_name in skipped_ambiguous:
+        print(f"跳过，原图不唯一 / Ambiguous source image: {mask_name} → {tool_name} / {legacy_name}")
+    if not exported_files and already_recorded and not skipped_no_image and not skipped_ambiguous:
+        return
     if not exported_files:
         print()
         print("❌ 没有成功导出任何文件。")
@@ -131,7 +153,6 @@ def export_contribution(
         sys.exit(1)
 
     # 更新 contributors.json / Update contributors.json
-    contributors_data = load_contributors()
 
     contribution_record = {
         "annotator": annotator_name,
